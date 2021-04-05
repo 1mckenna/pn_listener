@@ -6,7 +6,9 @@ import json
 import argparse
 
 #sio = socketio.Client(engineio_logger=True, logger=True)
-sio = socketio.Client()
+#sio = socketio.Client(engineio_logger=True, logger=True)
+sio = socketio.AsyncClient()
+#sio = socketio.AsyncClient()
 
 def parseArgs():
     parser = argparse.ArgumentParser()
@@ -19,22 +21,42 @@ def parseArgs():
         raise SystemExit(-1)
     return args
 
+class rup(object):
+    def __init__(self, j):
+        self.__dict__ = json.loads(j)
+
+class player(object):
+    def __init__(self, j):
+        self.__dict__ = json.loads(j)        
+
+class gameComm(object):
+    def __init__(self, j):
+        self.__dict__ = json.loads(j)   
+
 #SocketIO Code
 @sio.event
 def connect():
     print('connection established')
 
+
 @sio.on('gC')
-def my_event(data):
-    print(json.dumps(data, indent=4))
+async def my_event(data):
+    await parseGCEvent(data)
+    if not sio.connected:
+        await sio.emit("action", data={"type":"RUP"},callback=2)
+    #await sio.emit("action", data={"type":"RUP"},callback=2)
+
+@sio.on('rup')
+async def my_event(data):
+    myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
+    await parseRUPEvent(myrup)
 
 @sio.event
 def disconnect():
     print('disconnected from server')
 
-def start_server(gameID, cookieVal):
-    print('Game: '+gameID + '\tCookie Value: '+cookieVal)
-    sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID+'&EIO=3', wait=True, wait_timeout=60, transports="websocket", headers={
+async def start_server(gameID, cookieVal):
+    await sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID+'&EIO=3', wait=True, wait_timeout=60, transports="websocket", headers={
     'Accept-Encoding': 'gzip, deflate, br',
     'Accept-Language': 'en-US,en;q=0.9',
     'Cache-Control': 'no-cache',
@@ -48,9 +70,31 @@ def start_server(gameID, cookieVal):
     'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
     'Cookie': cookieVal
     })
-    sio.wait()
-#'Sec-WebSocket-Key': '',
+    await sio.wait()
 #END SocketIO Code
+
+async def parseRUPEvent(evtData):
+    for player in evtData.players.keys():
+        print("Name: "+str(evtData.players[player]['name'])+"\tID:"+evtData.players[player]['id']+"\t("+str(evtData.players.values())+")")
+        #print(evtData.players[player])
+    
+async def parseGCEvent(evtData):
+    print(json.dumps(evtData, indent=4))
+
+
+    #print(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
+    # if( "pC" in evtData.keys()):
+    #     print(evtData['pC'].values())
+    # if( "oTC" in evtData.keys()):
+    #     print("Cards Showing: " + str(evtData['oTC']))
+    # if("players" in evtData.keys()):
+    #     print("Players: " + str(evtData['players']))
+    # if("gameResult" in evtData.keys()):
+    #     print("gameResult" + str(evtData['gameResult']))
+    # if("pGS" in evtData.keys()):
+    #     print("Player Status" + str(evtData['pGS']))
+
+    await sio.emit("action", data={"type":"RUP"},callback=2)
 
 #Create our Cookie String with APT/NPT values
 def getCookieVal(aptVal, nptVal):
@@ -59,13 +103,12 @@ def getCookieVal(aptVal, nptVal):
         cookieStr +='apt='+aptVal[0]+';'
     if(nptVal != ''):
         cookieStr +='npt='+nptVal[0]+';'
-    print(cookieStr)
     return cookieStr
 
-def main():
+async def main():
     args = parseArgs()
-    start_server(args.game[0], getCookieVal(args.apt, args.npt))
+    await start_server(args.game[0], getCookieVal(args.apt, args.npt))
 
     
 if __name__ == '__main__':
-    main()
+    asyncio.run(main())
