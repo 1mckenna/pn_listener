@@ -10,6 +10,11 @@ sio = socketio.Client()
 #sio = socketio.AsyncClient(engineio_logger=True, logger=True)
 #sio = socketio.AsyncClient()
 
+firstGC = True
+firstRUP = True
+lastGC=""
+lastRUP=""
+
 def parseArgs():
     parser = argparse.ArgumentParser()
     parser.add_argument('-g','--game', dest="game", help='pokernow.club game id', nargs=1, required=True)
@@ -41,8 +46,20 @@ def connect():
 
 @sio.on('gC')
 #async def my_event(data):
-def my__gc_event(data):
-    parseGCEvent(data)
+def my_gc_event(data):
+    global firstGC
+    global lastGC
+    if(firstGC):
+        firstGC=False
+        lastGC = data
+        parseGCEvent(data)
+    else:
+        if(lastGC == data):
+            #This is a duplice message we do nothing
+            pass
+        else:
+            lastGC = data
+            parseGCEvent(data)
     #if not sio.connected:
     #    sio.emit("action", data={"type":"RUP"},callback=2)
     #sio.emit("action", data={"type":"RUP"},callback=2)
@@ -50,9 +67,22 @@ def my__gc_event(data):
 @sio.on('rup')
 #async def my_event(data):
 def my_rup_event(data):
-    myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
-    parseRUPEvent(myrup)
-    return 2
+    global firstRUP
+    global lastRUP
+    if(firstRUP):
+        firstRUP = False
+        lastRUP = data
+        myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
+        parseRUPEvent(myrup)
+        return 2
+    else:
+        if(lastRUP == data):
+            #This is a duplice message we do nothing
+            pass
+        else:
+            lastRUP = data
+            myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
+            parseRUPEvent(myrup)
 
 @sio.event
 def disconnect():
@@ -88,16 +118,24 @@ def parseGCEvent(evtData):
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
-                print("Player Cards:" + str(evtData['pC'][player]['cards']))
+                print(str(player)+" Cards:" + str(evtData['pC'][player]['cards']))
     if( "oTC" in evtData.keys()):
         print("Community Cards: " + str(evtData['oTC']))
-    #if("players" in evtData.keys()):
-    #    if not (evtData['players'] is None):
-    #        print("Players: " + str(evtData['players']))
     if("gameResult" in evtData.keys()):
-        print("gameResult" + str(json.dumps(evtData['gameResult'], default=lambda o: o.__dict__, indent=4)))
+        if(type(evtData['gameResult']) == dict):
+            #When we see gameResult the hand is ended
+            print("Hand Complete")
+            #print("gameResult: " + str(json.dumps(evtData['gameResult'], default=lambda o: o.__dict__, indent=4)))
     #if("pGS" in evtData.keys()):
     #    print("Player Status" + str(evtData['pGS']))
+    #if("cHB" in evtData.keys()):
+    #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
+    if("tB" in evtData.keys()):
+        for player in evtData['tB'].keys():
+            print(player + " tB: " + str(json.dumps(evtData['tB'][player], default=lambda o: o.__dict__, indent=4)))
+            #print(str(player) + " Action: " + str(evtData['tB'][player]))#1 seems to be call, <D> seems to be N/A, check ==check 2= fold
+    #if("gT" in evtData.keys()):
+    #    print("gT" + str(json.dumps(evtData['gT'], default=lambda o: o.__dict__, indent=4)))
 
 #Create our Cookie String with APT/NPT values
 def getCookieVal(aptVal, nptVal):
@@ -113,6 +151,5 @@ def main():
     args = parseArgs()
     start_server(args.game[0], getCookieVal(args.apt, args.npt))
 
-    
 if __name__ == '__main__':
     main()
