@@ -4,11 +4,13 @@ import asyncio
 import socketio
 import json
 import argparse
+from deuces import *
 
+evaluator = Evaluator()
+communityCards = []
 #sio = socketio.Client(engineio_logger=True, logger=True)
 sio = socketio.Client()
-#sio = socketio.AsyncClient(engineio_logger=True, logger=True)
-#sio = socketio.AsyncClient()
+
 
 firstGC = True
 firstRUP = True
@@ -37,6 +39,18 @@ class player(object):
 class gameComm(object):
     def __init__(self, j):
         self.__dict__ = json.loads(j)   
+
+def getPrintPrettyStr(card_ints):
+    output = " "
+    for i in range(len(card_ints)):
+        c = card_ints[i]
+        if i != len(card_ints) - 1:
+            output += Card.int_to_pretty_str(c) + ","
+        else:
+            output += Card.int_to_pretty_str(c) + " "
+    return output
+
+
 
 #SocketIO Code
 @sio.event
@@ -114,26 +128,45 @@ def parseRUPEvent(evtData):
     
 #async def parseGCEvent(evtData):
 def parseGCEvent(evtData):
+    global evaluator
+    global communityCards
     #print(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
-                print(str(player)+" Cards:" + str(evtData['pC'][player]['cards']))
+                c1 = Card.new(evtData['pC'][player]['cards'][0])
+                c2 = Card.new(evtData['pC'][player]['cards'][1])
+                hand = [c1, c2] 
+                if( len(communityCards) > 2 ):
+                    print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                    print(str(player)+" Cards: " + getPrintPrettyStr(hand) + "("+ evaluator.class_to_string(evaluator.get_rank_class(evaluator.evaluate(communityCards,hand))) +")")
+                else:
+                    print(str(player)+" Cards: " + getPrintPrettyStr(hand))
+
     if( "oTC" in evtData.keys()):
-        print("Community Cards: " + str(evtData['oTC']))
+        #print("Community Cards: " + str(evtData['oTC']))
+        #Clear Board Cards So we can just add them all
+        communityCards.clear()
+        for cCard in evtData['oTC']['1']:
+            communityCards.append(Card.new(cCard))
+        if( len(communityCards) > 2):
+            print("Community Cards: "+ getPrintPrettyStr(communityCards))
     if("gameResult" in evtData.keys()):
         if(type(evtData['gameResult']) == dict):
             #When we see gameResult the hand is ended
             print("Hand Complete")
+            #Clear Board Cards
+            communityCards.clear()
+
             #print("gameResult: " + str(json.dumps(evtData['gameResult'], default=lambda o: o.__dict__, indent=4)))
     #if("pGS" in evtData.keys()):
     #    print("Player Status" + str(evtData['pGS']))
     #if("cHB" in evtData.keys()):
     #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
-    if("tB" in evtData.keys()):
-        for player in evtData['tB'].keys():
-            print(player + " tB: " + str(json.dumps(evtData['tB'][player], default=lambda o: o.__dict__, indent=4)))
-            #print(str(player) + " Action: " + str(evtData['tB'][player]))#1 seems to be call, <D> seems to be N/A, check ==check 2= fold
+    #if("tB" in evtData.keys()):
+    #    for player in evtData['tB'].keys():
+    #        print(player + " tB: " + str(json.dumps(evtData['tB'][player], default=lambda o: o.__dict__, indent=4)))
+            #print(str(player) + " Action: " + str(evtData['tB'][player]))#<D> seems to be N/A, check ==check # is amount bet
     #if("gT" in evtData.keys()):
     #    print("gT" + str(json.dumps(evtData['gT'], default=lambda o: o.__dict__, indent=4)))
 
