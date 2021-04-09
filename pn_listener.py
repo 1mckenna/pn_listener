@@ -5,12 +5,14 @@ import socketio
 import json
 import argparse
 from deuces import *
+from pn_player import Player
 
 evaluator = Evaluator()
 communityCards = []
 #sio = socketio.Client(engineio_logger=True, logger=True)
 sio = socketio.Client()
 
+playerList = []
 
 firstGC = True
 firstRUP = True
@@ -32,10 +34,6 @@ class rup(object):
     def __init__(self, j):
         self.__dict__ = json.loads(j)
 
-class player(object):
-    def __init__(self, j):
-        self.__dict__ = json.loads(j)        
-
 class gameComm(object):
     def __init__(self, j):
         self.__dict__ = json.loads(j)   
@@ -51,15 +49,40 @@ def getPrintPrettyStr(card_ints):
     return output
 
 
+def isKnownPlayer(strPlayerID):
+    global playerList
+    for p in playerList:
+        if( p.playerID == strPlayerID):
+            return True
+    return False
+
+def returnPlayerIndex(strPlayerID):
+    global playerList
+    count = 0
+    for p in playerList:
+        if( p.playerID == strPlayerID):
+            return count
+        count = count + 1
+    return -1
+
+def muckCards():
+    global playerList
+    for p in playerList:
+        p.clearHoleCards()
+
+def printPlayerList():
+    global playerList
+    for player in playerList:
+        print(str(player.get_name()) + " ["+player.playerID+"]\t<" + player.get_playerstatus() +">\t "+str(player.get_stacksize())+" c")
 
 #SocketIO Code
 @sio.event
 def connect():
-    print('connection established')
+    #print('connection established')
+    pass
 
 
 @sio.on('gC')
-#async def my_event(data):
 def my_gc_event(data):
     global firstGC
     global lastGC
@@ -74,9 +97,16 @@ def my_gc_event(data):
         else:
             lastGC = data
             parseGCEvent(data)
+    if(len(playerList) == 0):
+        sio.emit("action", data={"type":"RUP"},callback=2)
     #if not sio.connected:
     #    sio.emit("action", data={"type":"RUP"},callback=2)
     #sio.emit("action", data={"type":"RUP"},callback=2)
+
+def updatePlayerList():
+    #emit event to update player list
+    print("Requesting Player Update")
+    sio.emit("action", data={"type":"RUP"},callback=2)
 
 @sio.on('rup')
 #async def my_event(data):
@@ -100,9 +130,9 @@ def my_rup_event(data):
 
 @sio.event
 def disconnect():
-    print('disconnected from server')
+    #print('disconnected from server')
+    pass
 
-#async def start_server(gameID, cookieVal):
 def start_server(gameID, cookieVal):
     sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, wait=True, wait_timeout=60, transports="websocket", headers={
     'Accept-Encoding': 'gzip, deflate, br',
@@ -121,30 +151,49 @@ def start_server(gameID, cookieVal):
     sio.wait()
 #END SocketIO Code
 
-#async def parseRUPEvent(evtData):
 def parseRUPEvent(evtData):
+    global playerList
+    #print(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
     for player in evtData.players.keys():
-        print("Name: "+str(evtData.players[player]['name'])+"\tID:"+evtData.players[player]['id']+"\t("+str(evtData.players.values())+")")
+        if(len(playerList) > 0):
+            #Check if Player ID Exists
+            if( isKnownPlayer(str(evtData.players[player]['id']))):
+                #Get Player Item # so we can update them
+                itemNum = returnPlayerIndex(str(evtData.players[player]['id']))
+                #Update Player
+                playerList[itemNum].set_name(str(evtData.players[player]['name']))
+                playerList[itemNum].set_stacksize(evtData.players[player]['stack'])
+                playerList[itemNum].set_playerstatus(evtData.players[player]['status'])
+            else:
+                #Add Player
+                p = Player(str(evtData.players[player]['id']))
+                p.set_name(str(evtData.players[player]['name']))
+                playerList.append(p)
+        else:
+            #Add Player
+            p = Player(str(evtData.players[player]['id']))
+            p.set_name(str(evtData.players[player]['name']))
+            playerList.append(p)
     
-#async def parseGCEvent(evtData):
 def parseGCEvent(evtData):
     global evaluator
     global communityCards
+    global playerList
     #print(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
                 c1 = Card.new(evtData['pC'][player]['cards'][0])
                 c2 = Card.new(evtData['pC'][player]['cards'][1])
-                hand = [c1, c2] 
+                itemNum = returnPlayerIndex(str(player))
+                playerList[itemNum].set_holecards( [ c1, c2 ] )
                 if( len(communityCards) > 2 ):
                     print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
-                    print(str(player)+" Cards: " + getPrintPrettyStr(hand) + "("+ evaluator.class_to_string(evaluator.get_rank_class(evaluator.evaluate(communityCards,hand))) +")")
+                    print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
                 else:
-                    print(str(player)+" Cards: " + getPrintPrettyStr(hand))
+                    print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
 
     if( "oTC" in evtData.keys()):
-        #print("Community Cards: " + str(evtData['oTC']))
         #Clear Board Cards So we can just add them all
         communityCards.clear()
         for cCard in evtData['oTC']['1']:
@@ -157,10 +206,12 @@ def parseGCEvent(evtData):
             print("Hand Complete")
             #Clear Board Cards
             communityCards.clear()
-
-            #print("gameResult: " + str(json.dumps(evtData['gameResult'], default=lambda o: o.__dict__, indent=4)))
-    #if("pGS" in evtData.keys()):
-    #    print("Player Status" + str(evtData['pGS']))
+            #Clear Player Cards
+            muckCards()
+            #Request for an update to the players list
+            updatePlayerList()
+            #Print PlayerList
+            printPlayerList()
     #if("cHB" in evtData.keys()):
     #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
     #if("tB" in evtData.keys()):
@@ -179,7 +230,6 @@ def getCookieVal(aptVal, nptVal):
         cookieStr +='npt='+nptVal[0]+';'
     return cookieStr
 
-#async def main():
 def main():
     args = parseArgs()
     start_server(args.game[0], getCookieVal(args.apt, args.npt))
