@@ -4,30 +4,37 @@ import asyncio
 import socketio
 import json
 import argparse
+import sys
+import os
 from deuces import *
 from pn_player import Player
 
 evaluator = Evaluator()
 communityCards = []
-#sio = socketio.Client(engineio_logger=True, logger=True)
-sio = socketio.Client()
-
 playerList = []
-
+debugLogging = False
 firstGC = True
 firstRUP = True
 lastGC=""
 lastRUP=""
 
+#sio = socketio.Client(engineio_logger=True, logger=True)
+sio = socketio.Client(logger=False, engineio_logger=False)
+
 def parseArgs():
+    global debugLogging
     parser = argparse.ArgumentParser()
     parser.add_argument('-g','--game', dest="game", help='pokernow.club game id', nargs=1, required=True)
     parser.add_argument('-n', '--npt', dest="npt", default='', help='pokernow.club npt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-a', '--apt', dest="apt", default='', help='pokernow.club apt cookie value (copy from browser)', nargs=1)
+    parser.add_argument('-d', '--debug', dest="debug", default=False, action='store_true', help='Enable Debug Logging (saves to ./debug.log)')
     args = parser.parse_args()
     if not args.game and (not args.npt or not args.apt):
         print("You must a gameid and a npt/apt cookie value")
         raise SystemExit(-1)
+    if(args.debug):
+        #Enable Debug Logging
+        debugLogging = True
     return args
 
 class rup(object):
@@ -75,58 +82,69 @@ def printPlayerList():
     for player in playerList:
         print(str(player.get_name()) + " ["+player.playerID+"]\t<" + player.get_playerstatus() +">\t "+str(player.get_stacksize())+" c")
 
+def writeLog(inputStr):
+    with open("debug.log", 'a') as logFile:
+        logFile.write(inputStr + '\n')
+
 #SocketIO Code
 @sio.event
 def connect():
     #print('connection established')
     pass
 
-
 @sio.on('gC')
 def my_gc_event(data):
     global firstGC
     global lastGC
-    if(firstGC):
-        firstGC=False
-        lastGC = data
-        parseGCEvent(data)
-    else:
-        if(lastGC == data):
-            #This is a duplice message we do nothing
-            pass
-        else:
+    try:
+        if(firstGC):
+            firstGC=False
             lastGC = data
             parseGCEvent(data)
-    if(len(playerList) == 0):
-        sio.emit("action", data={"type":"RUP"},callback=2)
-    #if not sio.connected:
-    #    sio.emit("action", data={"type":"RUP"},callback=2)
-    #sio.emit("action", data={"type":"RUP"},callback=2)
+        else:
+            if(lastGC == data):
+                #This is a duplice message we do nothing
+                pass
+            else:
+                lastGC = data
+                parseGCEvent(data)
+        if(len(playerList) == 0):
+            sio.emit("action", data={"type":"RUP"},callback=2)
+        #if not sio.connected:
+        #    sio.emit("action", data={"type":"RUP"},callback=2)
+        #sio.emit("action", data={"type":"RUP"},callback=2)
+    except:
+        pass
 
 def updatePlayerList():
     #emit event to update player list
     print("Requesting Player Update")
-    sio.emit("action", data={"type":"RUP"},callback=2)
+    try:
+        sio.emit("action", data={"type":"RUP"},callback=2)
+    except:
+        pass
 
 @sio.on('rup')
-#async def my_event(data):
 def my_rup_event(data):
     global firstRUP
     global lastRUP
-    if(firstRUP):
-        firstRUP = False
-        lastRUP = data
-        myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
-        parseRUPEvent(myrup)
-        return 2
-    else:
-        if(lastRUP == data):
-            #This is a duplice message we do nothing
-            pass
-        else:
+    try:
+        if(firstRUP):
+            firstRUP = False
             lastRUP = data
             myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
             parseRUPEvent(myrup)
+            return 2
+        else:
+            if(lastRUP == data):
+                #This is a duplice message we do nothing
+                pass
+            else:
+                lastRUP = data
+                myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
+                parseRUPEvent(myrup)
+    except:
+        pass
 
 @sio.event
 def disconnect():
@@ -134,26 +152,31 @@ def disconnect():
     pass
 
 def start_server(gameID, cookieVal):
-    sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, wait=True, wait_timeout=60, transports="websocket", headers={
-    'Accept-Encoding': 'gzip, deflate, br',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Cache-Control': 'no-cache',
-    'Connection': 'Upgrade',
-    'Host': 'www.pokernow.club',
-    'Origin': 'https://www.pokernow.club',
-    'Pragma': 'no-cache',
-    'Sec-WebSocket-Extensions':'client_max_window_bits',
-    'Sec-WebSocket-Version': '13',
-    'Upgrade': 'websocket',
-    'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
-    'Cookie': cookieVal
-    })
-    sio.wait()
+    try:
+        sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, wait=True, wait_timeout=60, transports="websocket", headers={
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Cache-Control': 'no-cache',
+        'Connection': 'Upgrade',
+        'Host': 'www.pokernow.club',
+        'Origin': 'https://www.pokernow.club',
+        'Pragma': 'no-cache',
+        'Sec-WebSocket-Extensions':'client_max_window_bits',
+        'Sec-WebSocket-Version': '13',
+        'Upgrade': 'websocket',
+        'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
+        'Cookie': cookieVal
+        })
+        sio.wait()
+    except:
+        pass
 #END SocketIO Code
 
 def parseRUPEvent(evtData):
     global playerList
-    #print(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
+    global debugLogging
+    if(debugLogging):
+        writeLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
     for player in evtData.players.keys():
         if(len(playerList) > 0):
             #Check if Player ID Exists
@@ -179,7 +202,9 @@ def parseGCEvent(evtData):
     global evaluator
     global communityCards
     global playerList
-    #print(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
+    global debugLogging
+    if(debugLogging):
+        writeLog(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
