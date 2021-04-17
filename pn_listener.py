@@ -1,25 +1,39 @@
 #!/usr/bin/env python3
 
-import asyncio
 import socketio
 import json
 import argparse
 import sys
 import os
+from queue import Empty
 from deuces import *
 from pn_player import Player
+from signal import signal, SIGINT
 
 evaluator = Evaluator()
 communityCards = []
 playerList = []
 debugLogging = False
+gameLogFile = ""
 firstGC = True
 firstRUP = True
 lastGC=""
 lastRUP=""
 
 #sio = socketio.Client(engineio_logger=True, logger=True)
-sio = socketio.Client(logger=False, engineio_logger=False)
+try:
+    sio = socketio.Client()
+    sio.eio.ping_interval = 30
+    sio.eio.ping_timeout = 30
+except Exception as e:
+    print("clienterr")
+    print(e)
+
+def handler(signal_received, frame):
+    print("\nI'm Dying How Are You?\n")
+    if( sio.connected ):
+        sio.disconnect()
+    exit(0)
 
 def parseArgs():
     global debugLogging
@@ -27,6 +41,7 @@ def parseArgs():
     parser.add_argument('-g','--game', dest="game", help='pokernow.club game id', nargs=1, required=True)
     parser.add_argument('-n', '--npt', dest="npt", default='', help='pokernow.club npt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-a', '--apt', dest="apt", default='', help='pokernow.club apt cookie value (copy from browser)', nargs=1)
+    parser.add_argument('-l', '--log', dest="log", default='', help='Enable Game Logging', nargs=1)
     parser.add_argument('-d', '--debug', dest="debug", default=False, action='store_true', help='Enable Debug Logging (saves to ./debug.log)')
     args = parser.parse_args()
     if not args.game and (not args.npt or not args.apt):
@@ -82,15 +97,23 @@ def printPlayerList():
     for player in playerList:
         print(str(player.get_name()) + " ["+player.playerID+"]\t<" + player.get_playerstatus() +">\t "+str(player.get_stacksize())+" c")
 
-def writeLog(inputStr):
+def writeGameLog(inputStr):
+    global gameLogFile
+    with open(gameLogFile[0], 'a') as logFile:
+        logFile.write(inputStr + '\n')    
+
+def writeDebugLog(inputStr):
     with open("debug.log", 'a') as logFile:
         logFile.write(inputStr + '\n')
 
 #SocketIO Code
 @sio.event
 def connect():
-    #print('connection established')
-    pass
+    try:
+        pass
+    except Exception as e:
+        print("connect: ")
+        print(e)
 
 @sio.on('gC')
 def my_gc_event(data):
@@ -110,19 +133,21 @@ def my_gc_event(data):
                 parseGCEvent(data)
         if(len(playerList) == 0):
             sio.emit("action", data={"type":"RUP"},callback=2)
-        #if not sio.connected:
-        #    sio.emit("action", data={"type":"RUP"},callback=2)
+        # if not sio.connected:
+        #     sio.emit("action", data={"type":"RUP"},callback=2)
         #sio.emit("action", data={"type":"RUP"},callback=2)
-    except:
-        pass
+    except Exception as e:
+        print("gc: ")
+        print(e)
 
 def updatePlayerList():
     #emit event to update player list
     print("Requesting Player Update")
     try:
         sio.emit("action", data={"type":"RUP"},callback=2)
-    except:
-        pass
+    except Exception as e:
+        print("updateplayer: ")
+        print(e)
 
 @sio.on('rup')
 def my_rup_event(data):
@@ -143,13 +168,17 @@ def my_rup_event(data):
                 lastRUP = data
                 myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
                 parseRUPEvent(myrup)
-    except:
-        pass
+    except Exception as e:
+        print("rup: ")
+        print(e)
 
 @sio.event
 def disconnect():
-    #print('disconnected from server')
-    pass
+    try:
+        pass
+    except Exception as e:
+        print("disconnect: ")
+        print(e)
 
 def start_server(gameID, cookieVal):
     try:
@@ -167,16 +196,17 @@ def start_server(gameID, cookieVal):
         'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36',
         'Cookie': cookieVal
         })
-        sio.wait()
-    except:
-        pass
+    except Exception as e:
+        print("start-server exception")
+        print(e)
+        # pass
 #END SocketIO Code
 
 def parseRUPEvent(evtData):
     global playerList
     global debugLogging
     if(debugLogging):
-        writeLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
+        writeDebugLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
     for player in evtData.players.keys():
         if(len(playerList) > 0):
             #Check if Player ID Exists
@@ -203,21 +233,30 @@ def parseGCEvent(evtData):
     global communityCards
     global playerList
     global debugLogging
+    global gameLogFile
     if(debugLogging):
-        writeLog(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
+        writeDebugLog(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
                 c1 = Card.new(evtData['pC'][player]['cards'][0])
                 c2 = Card.new(evtData['pC'][player]['cards'][1])
                 itemNum = returnPlayerIndex(str(player))
-                playerList[itemNum].set_holecards( [ c1, c2 ] )
-                if( len(communityCards) > 2 ):
-                    print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
-                    print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
-                else:
-                    print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
+                try:
+                    playerList[itemNum].set_holecards( [ c1, c2 ] )
+                    if( len(communityCards) > 2 ):
+                        print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                        print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
+                        if not (gameLogFile == ''):
+                            writeGameLog("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                            writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
 
+                    else:
+                        print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
+                        if not (gameLogFile == ''):
+                            writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
+                except:
+                    pass
     if( "oTC" in evtData.keys()):
         #Clear Board Cards So we can just add them all
         communityCards.clear()
@@ -225,10 +264,14 @@ def parseGCEvent(evtData):
             communityCards.append(Card.new(cCard))
         if( len(communityCards) > 2):
             print("Community Cards: "+ getPrintPrettyStr(communityCards))
+            if not (gameLogFile == ''):
+                writeGameLog("Community Cards: "+ getPrintPrettyStr(communityCards))
     if("gameResult" in evtData.keys()):
         if(type(evtData['gameResult']) == dict):
             #When we see gameResult the hand is ended
             print("Hand Complete")
+            if not (gameLogFile == ''):
+                writeGameLog("Hand Complete")
             #Clear Board Cards
             communityCards.clear()
             #Clear Player Cards
@@ -255,9 +298,15 @@ def getCookieVal(aptVal, nptVal):
         cookieStr +='npt='+nptVal[0]+';'
     return cookieStr
 
-def main():
-    args = parseArgs()
-    start_server(args.game[0], getCookieVal(args.apt, args.npt))
-
 if __name__ == '__main__':
-    main()
+    args = parseArgs()
+    if not (args.log == ''):
+        gameLogFile = args.log
+    signal(SIGINT, handler)
+    try:
+        sio.start_background_task(start_server(args.game[0], getCookieVal(args.apt, args.npt)))
+        sio.wait()
+    except Exception as e:
+        print(e)
+    while True:
+        pass
