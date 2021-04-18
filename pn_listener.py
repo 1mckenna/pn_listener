@@ -5,7 +5,7 @@ import json
 import argparse
 import sys
 import os
-from queue import Empty
+from queue import *
 from deuces import *
 from pn_player import Player
 from signal import signal, SIGINT
@@ -21,13 +21,10 @@ lastGC=""
 lastRUP=""
 
 #sio = socketio.Client(engineio_logger=True, logger=True)
-try:
-    sio = socketio.Client()
-    sio.eio.ping_interval = 30
-    sio.eio.ping_timeout = 30
-except Exception as e:
-    print("clienterr")
-    print(e)
+sio = socketio.Client()
+sio.eio.logger.setLevel("CRITICAL")
+sio.eio.ping_interval = 30
+sio.eio.ping_timeout = 30
 
 def handler(signal_received, frame):
     print("\nI'm Dying How Are You?\n")
@@ -136,6 +133,7 @@ def my_gc_event(data):
         # if not sio.connected:
         #     sio.emit("action", data={"type":"RUP"},callback=2)
         #sio.emit("action", data={"type":"RUP"},callback=2)
+        sio.sleep(1)
     except Exception as e:
         print("gc: ")
         print(e)
@@ -168,6 +166,7 @@ def my_rup_event(data):
                 lastRUP = data
                 myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
                 parseRUPEvent(myrup)
+        sio.sleep(1)
     except Exception as e:
         print("rup: ")
         print(e)
@@ -297,6 +296,9 @@ def getCookieVal(aptVal, nptVal):
     if(nptVal != ''):
         cookieStr +='npt='+nptVal[0]+';'
     return cookieStr
+
+def main():
+    pass
 
 if __name__ == '__main__':
     args = parseArgs()
