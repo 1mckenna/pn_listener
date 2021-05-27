@@ -5,10 +5,11 @@ import json
 import argparse
 import sys
 import os
+import time
+import curses
 from queue import *
-from deuces import *
+from deuces import Card, Evaluator
 from pn_player import Player
-from signal import signal, SIGINT
 
 evaluator = Evaluator()
 communityCards = []
@@ -23,14 +24,130 @@ lastRUP=""
 #sio = socketio.Client(engineio_logger=True, logger=True)
 sio = socketio.Client()
 sio.eio.logger.setLevel("CRITICAL")
-sio.eio.ping_interval = 30
-sio.eio.ping_timeout = 30
+#Start Curses
+stdscr = curses.initscr()
+height, width = stdscr.getmaxyx()
+stdscr.erase()
+stdscr.refresh()
+# Start colors in curses
+curses.start_color()
+curses.use_default_colors()
+for i in range(0, curses.COLORS):
+    curses.init_pair(i, i, -1)
 
-def handler(signal_received, frame):
-    print("\nI'm Dying How Are You?\n")
-    if( sio.connected ):
-        sio.disconnect()
-    exit(0)
+
+def curses_print_communityCards(card_ints):
+    global stdscr
+    global height
+    global width
+    start_w = 4
+    start_h = int((height // 2) - 2)
+    stdscr.addstr(start_h-2, start_w-2, " *** C O M M U N I T Y *  * C A R D S *** ", curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(start_h-1, start_w-2, "="*42, curses.color_pair(250) | curses.A_BOLD)
+    for i in range(len(card_ints)):
+        c = card_ints[i]
+        suit_int = Card.get_suit_int(c)
+        rank_int = Card.get_rank_int(c)
+        # if we need to color red
+        s = Card.PRETTY_SUITS[suit_int]
+        r = Card.STR_RANKS[rank_int]
+        if(suit_int == 1):            
+            # 's' : 1, # spades
+            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(250) | curses.A_BOLD)
+        elif(suit_int == 2):
+            # 'h' : 2, # hearts
+            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(161) | curses.A_BOLD)
+        elif(suit_int == 4):
+            # 'd' : 4, # diamonds
+            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(20) | curses.A_BOLD)
+        elif(suit_int == 8):
+            # 'c' : 8, # clubs
+            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(47) | curses.A_BOLD)
+        #Add width of card each time we add a new one
+        start_w = start_w + 7
+        stdscr.refresh()
+
+def curses_clear_communityCards():
+    global stdscr
+    global height
+    global width
+    start_w = 2
+    start_h = int((height // 2) - 2)
+    stdscr.addstr(start_h, start_w, " " * (width-start_w))
+    stdscr.refresh()
+
+def curses_print_playerCards(card_ints, playerNumber):
+    global stdscr
+    global height
+    global width
+    global playerList
+    start_w = 2
+    start_h = int(height - 15)
+    stdscr.addstr(start_h - 1, start_w + (21 * playerNumber), str(playerList[playerNumber].get_name()), curses.color_pair(1) | curses.A_BOLD)
+    for i in range(len(card_ints)):
+        c = card_ints[i]
+        suit_int = Card.get_suit_int(c)
+        rank_int = Card.get_rank_int(c)
+        # if we need to color red
+        s = Card.PRETTY_SUITS[suit_int]
+        r = Card.STR_RANKS[rank_int]
+        if(suit_int == 1):            
+            # 's' : 1, # spades
+            stdscr.addstr(start_h, start_w + (20 * playerNumber), " [" +r+ " " +s+ "] ", curses.color_pair(250) | curses.A_BOLD)
+        elif(suit_int == 2):
+            # 'h' : 2, # hearts
+            stdscr.addstr(start_h, start_w + (20 * playerNumber), " [" +r+ " " +s+ "] ", curses.color_pair(161) | curses.A_BOLD)
+        elif(suit_int == 4):
+            # 'd' : 4, # diamonds
+            stdscr.addstr(start_h, start_w + (20 * playerNumber), " [" +r+ " " +s+ "] ", curses.color_pair(20) | curses.A_BOLD)
+        elif(suit_int == 8):
+            # 'c' : 8, # clubs
+            stdscr.addstr(start_h, start_w + (20 * playerNumber), " [" +r+ " " +s+ "] ", curses.color_pair(47) | curses.A_BOLD)
+        #Add width of card each time we add a new one
+        start_w = start_w + 7
+        stdscr.refresh()
+
+def curses_clear_playerCards():
+    global stdscr
+    global height
+    global width
+    global playerList
+    start_w = 2
+    start_h = int(height - 15)
+    stdscr.addstr(start_h, start_w, " " * (width-start_w))
+    stdscr.refresh()
+
+def curses_print_leaderboard():
+    global stdscr
+    global height
+    global width
+    global playerList
+    start_w = 4
+    start_h = 3
+    stdscr.addstr(start_h-3, start_w+14, " *** L E A D E R B O A R D *** ", curses.color_pair(250) | curses.A_BOLD)
+    headers = str("Handle".ljust(10, ' ')) + " Player ID".ljust(10, ' ')+"\t"+"<STATUS>".ljust(10, ' ')+"\t "+"Stacksize".rjust(13,' ')+" (c)"
+    stdscr.addstr(start_h-2, start_w-2,"=" * 64, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(start_h-1, start_w, headers, curses.color_pair(250) | curses.A_BOLD)
+    for player in playerList:
+        output = str(player.get_name()).ljust(10, ' ') + str(" ["+ player.playerID +"]").ljust(10, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"
+        stdscr.addstr(start_h, start_w, output, curses.color_pair(250) | curses.A_BOLD)
+        stdscr.refresh()
+        start_h = start_h + 1
+
+def curses_print(x,y,msg):
+    global stdscr
+    stdscr.addstr(x,y,msg)
+    stdscr.refresh()
+
+def curses_print_center(msg):
+    global stdscr
+    global height
+    global width
+    start_w = int((width // 2) - (len(msg) // 2) - len(msg) % 2)
+    start_h = int((height // 2) - 2)
+    stdscr.addstr(start_h,0, msg)
+    stdscr.refresh()
+
 
 def parseArgs():
     global debugLogging
@@ -67,7 +184,6 @@ def getPrintPrettyStr(card_ints):
             output += Card.int_to_pretty_str(c) + " "
     return output
 
-
 def isKnownPlayer(strPlayerID):
     global playerList
     for p in playerList:
@@ -88,11 +204,16 @@ def muckCards():
     global playerList
     for p in playerList:
         p.clearHoleCards()
+    time.sleep(2*len(playerList)) #simulate muck time
 
 def printPlayerList():
     global playerList
+    global width
+    h = 5
     for player in playerList:
-        print(str(player.get_name()) + " ["+player.playerID+"]\t<" + player.get_playerstatus() +">\t "+str(player.get_stacksize())+" c")
+        output = str(player.get_name()) + " ["+ player.playerID +"]\t<" + player.get_playerstatus() +">\t "+str(player.get_stacksize())+" c"
+        curses_print(h, 2,output, curses.color_pair(1) | curses.A_BOLD)
+        h = h + 1
 
 def writeGameLog(inputStr):
     global gameLogFile
@@ -106,11 +227,7 @@ def writeDebugLog(inputStr):
 #SocketIO Code
 @sio.event
 def connect():
-    try:
-        pass
-    except Exception as e:
-        print("connect: ")
-        print(e)
+    pass
 
 @sio.on('gC')
 def my_gc_event(data):
@@ -134,18 +251,16 @@ def my_gc_event(data):
         #     sio.emit("action", data={"type":"RUP"},callback=2)
         #sio.emit("action", data={"type":"RUP"},callback=2)
         sio.sleep(1)
-    except Exception as e:
-        print("gc: ")
-        print(e)
+    except:
+        pass
 
 def updatePlayerList():
     #emit event to update player list
-    print("Requesting Player Update")
+    # print("Requesting Player Update")
     try:
         sio.emit("action", data={"type":"RUP"},callback=2)
-    except Exception as e:
-        print("updateplayer: ")
-        print(e)
+    except:
+        pass
 
 @sio.on('rup')
 def my_rup_event(data):
@@ -167,17 +282,13 @@ def my_rup_event(data):
                 myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
                 parseRUPEvent(myrup)
         sio.sleep(1)
-    except Exception as e:
-        print("rup: ")
-        print(e)
+    except:
+        pass
+
 
 @sio.event
 def disconnect():
-    try:
-        pass
-    except Exception as e:
-        print("disconnect: ")
-        print(e)
+    pass
 
 def start_server(gameID, cookieVal):
     try:
@@ -226,6 +337,7 @@ def parseRUPEvent(evtData):
             p = Player(str(evtData.players[player]['id']))
             p.set_name(str(evtData.players[player]['name']))
             playerList.append(p)
+    printPlayerList()
     
 def parseGCEvent(evtData):
     global evaluator
@@ -238,47 +350,70 @@ def parseGCEvent(evtData):
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
-                c1 = Card.new(evtData['pC'][player]['cards'][0])
-                c2 = Card.new(evtData['pC'][player]['cards'][1])
-                itemNum = returnPlayerIndex(str(player))
-                try:
-                    playerList[itemNum].set_holecards( [ c1, c2 ] )
-                    if( len(communityCards) > 2 ):
-                        print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
-                        print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
-                        if not (gameLogFile == ''):
-                            writeGameLog("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
-                            writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
-
-                    else:
-                        print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
-                        if not (gameLogFile == ''):
-                            writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
-                except:
-                    pass
+                #Check if playing Holdem
+                if( len(evtData['pC'][player]['cards']) == 2):
+                    c1 = Card.new(evtData['pC'][player]['cards'][0])
+                    c2 = Card.new(evtData['pC'][player]['cards'][1])
+                    itemNum = returnPlayerIndex(str(player))
+                    try:
+                        playerList[itemNum].set_holecards( [ c1, c2 ] )
+                        if( len(communityCards) > 2 ):
+                            # print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                            curses_print_communityCards(communityCards)
+                            curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum)
+                            # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
+                            if not (gameLogFile == ''):
+                                writeGameLog("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                                writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
+    
+                        else:
+                            # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
+                            if not (gameLogFile == ''):
+                                writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
+                    except:
+                        pass
+                #We are playing Omahi Hi/Low
+                elif(len(evtData['pC'][player]['cards']) == 4):
+                    c1 = Card.new(evtData['pC'][player]['cards'][0])
+                    c2 = Card.new(evtData['pC'][player]['cards'][1])
+                    c3 = Card.new(evtData['pC'][player]['cards'][2])
+                    c4 = Card.new(evtData['pC'][player]['cards'][3])
+                    itemNum = returnPlayerIndex(str(player))
+                    try:
+                        playerList[itemNum].set_holecards( [ c1, c2, c3, c4 ] )
+                        if( len(communityCards) > 2 ):
+                            # print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
+                            curses_print_communityCards(communityCards)
+                            curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum)
+                            # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
+                    except:
+                        pass
     if( "oTC" in evtData.keys()):
         #Clear Board Cards So we can just add them all
         communityCards.clear()
         for cCard in evtData['oTC']['1']:
             communityCards.append(Card.new(cCard))
         if( len(communityCards) > 2):
-            print("Community Cards: "+ getPrintPrettyStr(communityCards))
+            # print("Community Cards: "+ getPrintPrettyStr(communityCards))
+            curses_print_communityCards(communityCards)
             if not (gameLogFile == ''):
                 writeGameLog("Community Cards: "+ getPrintPrettyStr(communityCards))
     if("gameResult" in evtData.keys()):
         if(type(evtData['gameResult']) == dict):
             #When we see gameResult the hand is ended
-            print("Hand Complete")
+            # print("Hand Complete")
             if not (gameLogFile == ''):
                 writeGameLog("Hand Complete")
             #Clear Board Cards
             communityCards.clear()
+            curses_clear_communityCards()
             #Clear Player Cards
+            curses_clear_playerCards()
             muckCards()
             #Request for an update to the players list
             updatePlayerList()
             #Print PlayerList
-            printPlayerList()
+            curses_print_leaderboard()
     #if("cHB" in evtData.keys()):
     #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
     #if("tB" in evtData.keys()):
@@ -287,6 +422,7 @@ def parseGCEvent(evtData):
             #print(str(player) + " Action: " + str(evtData['tB'][player]))#<D> seems to be N/A, check ==check # is amount bet
     #if("gT" in evtData.keys()):
     #    print("gT" + str(json.dumps(evtData['gT'], default=lambda o: o.__dict__, indent=4)))
+    printPlayerList()
 
 #Create our Cookie String with APT/NPT values
 def getCookieVal(aptVal, nptVal):
@@ -298,17 +434,45 @@ def getCookieVal(aptVal, nptVal):
     return cookieStr
 
 def main():
-    pass
+    try:
+        sio.start_background_task(start_server(args.game[0], getCookieVal(args.apt, args.npt)))
+        # sio.wait()
+        # Initialization
+        stdscr.erase()
+        statusbarstr = "Press 'Ctrl+C' to exit | pn_listener v0.1"
+        # Render status bar
+        stdscr.attron(curses.color_pair(3))
+        stdscr.addstr(height-1, 0, statusbarstr)
+        stdscr.addstr(height-1, len(statusbarstr), " " * (width - len(statusbarstr) - 1))
+        stdscr.attroff(curses.color_pair(3))
+        stdscr.refresh()
+        while True:
+            stdscr.nodelay(1) # Don't block waiting for input.
+            c = stdscr.getch() # Get char from input.  If none is available, will return -1.
+            time.sleep(1)
+            if c == 3:
+                stdscr.refresh()
+                raise KeyboardInterrupt
+            else:
+                curses.flushinp() # Clear out buffer.  We only care about Ctrl+C.      
+    except KeyboardInterrupt:
+        stdscr.erase()
+        stdscr.addstr(3, 0, "I'm Dying How Are You?", curses.color_pair(250) | curses.A_BOLD)
+        stdscr.attron(curses.color_pair(3))
+        stdscr.addstr(height-1, 0, statusbarstr)
+        stdscr.addstr(height-1, len(statusbarstr), " " * (width - len(statusbarstr) - 1))
+        stdscr.attroff(curses.color_pair(3))
+        stdscr.refresh()
+        if( sio.connected ):
+            sio.disconnect()
+        stdscr.refresh()
+    finally:
+        stdscr.refresh()
+        time.sleep(3) # This delay just so we can see final screen output
+        curses.endwin()
 
 if __name__ == '__main__':
     args = parseArgs()
     if not (args.log == ''):
         gameLogFile = args.log
-    signal(SIGINT, handler)
-    try:
-        sio.start_background_task(start_server(args.game[0], getCookieVal(args.apt, args.npt)))
-        sio.wait()
-    except Exception as e:
-        print(e)
-    while True:
-        pass
+    main()
