@@ -414,11 +414,19 @@ def parseRUPEvent(evtData):
                 #Add Player
                 p = Player(str(evtData.players[player]['id']))
                 p.set_name(str(evtData.players[player]['name']))
+                if not (evtData.players[player]['stack'] is None):
+                    p.set_stacksize(evtData.players[player]['stack'])
+                if not (evtData.players[player]['status'] is None):
+                    p.set_playerstatus(evtData.players[player]['status'])
                 playerList.append(p)
         else:
             #Add Player
             p = Player(str(evtData.players[player]['id']))
             p.set_name(str(evtData.players[player]['name']))
+            if not (evtData.players[player]['stack'] is None):
+                p.set_stacksize(evtData.players[player]['stack'])
+            if not (evtData.players[player]['status'] is None):
+                p.set_playerstatus(evtData.players[player]['status'])
             playerList.append(p)
     curses_print_leaderboard()
     
@@ -441,7 +449,6 @@ def parseGCEvent(evtData):
                     try:
                         playerList[itemNum].set_holecards( [ c1, c2 ] )
                         if( len(communityCards) > 2 ):
-                            # print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
                             curses_print_communityCards(communityCards)
                             curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, str(evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards())))))
                             run_handSimulation(playerList[itemNum].get_holecards(), itemNum)
@@ -452,7 +459,6 @@ def parseGCEvent(evtData):
                             curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, "Pre-Flop")
                             #Calculate PreFlop Hand Stats
                             run_handSimulation(playerList[itemNum].get_holecards(), itemNum)
-                            # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
                             if not (gameLogFile == ''):
                                 writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
                     except:
