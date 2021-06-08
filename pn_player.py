@@ -5,6 +5,7 @@ class Player:
     playerStatus = "unknown"
     playerName = ""
     playerHand = []
+    playerWinChance = 0.0
     playerStackSize = 0
 
     def __init__(self, playerID):
@@ -36,3 +37,9 @@ class Player:
 
     def set_playerstatus(self, pStatus):
         self.playerStatus = pStatus
+
+    def set_playerWinChance(self, winChance):
+        self.playerWinChance = winChance
+    
+    def get_playerWinChance(self):
+        return self.playerWinChance

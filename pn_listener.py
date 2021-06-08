@@ -78,19 +78,19 @@ def curses_clear_communityCards():
 def curses_print_allHeaders():
     global stdscr
     stdscr.addstr(0, 18, " *** L E A D E R B O A R D *** ", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(1, 2,"=" * 66, curses.color_pair(250) | curses.A_BOLD)
-    headers = str("Handle".ljust(10, ' ')) + " Player ID".ljust(10, ' ')+"\t"+"<STATUS>".ljust(10, ' ')+"\t "+"Stacksize".rjust(13,' ')+" (c)"
+    stdscr.addstr(1, 2,"=" * 85, curses.color_pair(250) | curses.A_BOLD)
+    headers = str("Handle".ljust(15, ' ')) + " Player ID".ljust(15, ' ')+"\t"+"<STATUS>".ljust(10, ' ')+"\t "+"Stacksize".rjust(13,' ')+" (c)"
     stdscr.addstr(2, 2, headers, curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(3, 2,"-" * 66, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(3, 2,"-" * 85, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     stdscr.addstr(19, 12, " *** C O M M U N I T Y *  * C A R D S *** ", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(20, 2, "="*66, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(20, 2, "="*85, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     stdscr.addstr(25, 16, " *** P L A Y E R - C A R D S *** ", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(26, 2,"=" * 66, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(26, 2,"=" * 85, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     stdscr.addstr(38, 18, " *** H A N D - S T A T S *** ", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(39, 2,"=" * 66, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(39, 2,"=" * 85, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
 
 def drawCard(number, exclude):
@@ -108,19 +108,33 @@ def drawCard(number, exclude):
 
     return drawn_cards
 
-def curses_print_handStats(card_ints):
+def curses_print_handStats(playerNumber):
     global stdscr
     global height
     global width
+    global playerList
+    start_w = 17
+    start_h = 27
+    stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(250) | curses.A_BOLD)
+    stdscr.refresh()
+
+def curses_clearHandStats():
+    global playerList
+    global stdscr
+    global width
+    start_w = 17
+    start_h = 27
+    for playerNumber in range(playerList):
+        stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, " "*(width - start_w + (5*len(playerList[playerNumber].get_holecards())) + 35), curses.color_pair(250) | curses.A_BOLD)
+        stdscr.refresh()  
+
+
+def run_handSimulation(card_ints, playerNumber):
     global communityCards
-    start_w = 2
-    start_h = 40
-    #build hand for evaluation
+    global playerList
     simulation_count = 10000
     win_count = 0
     runs = 0
-    stdscr.addstr(start_h, start_w, "Starting Simulation...", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.refresh()
     for sim in range(simulation_count):
         board_fill = 5 - len(communityCards)
         simulate_board = communityCards + drawCard(board_fill, communityCards + card_ints)
@@ -129,30 +143,25 @@ def curses_print_handStats(card_ints):
         enemy_score = evaluator.evaluate(simulate_board, simulate_hand)
         if my_score < enemy_score:
             win_count += 1
-            #Only Update When we Win
-            stdscr.addstr(start_h, start_w, "Running Simulation ["+str(runs)+"/"+str(simulation_count)+"]", curses.color_pair(250) | curses.A_BOLD)
-            stdscr.refresh()
         runs += 1
     win_chance = win_count/float(runs)
-    stdscr.addstr(start_h, start_w, "Winning Percentage: %.1f%%                "% (100 * win_chance), curses.color_pair(250) | curses.A_BOLD)
-    stdscr.refresh()
+    playerList[playerNumber].set_playerWinChance(win_chance)
+    #Now that we have stored the hand stats let's print them
+    curses_print_handStats(playerNumber)
 
-def curses_clearHandStats():
-    stdscr.addstr(40, 2, " "*80, curses.color_pair(250) | curses.A_BOLD)
-    stdscr.refresh()
 
 def curses_print_playerCards(card_ints, playerNumber, handEval):
     global stdscr
     global height
     global width
     global playerList
-    start_w = 2
+    start_w = 17
     start_h = 27
     if(str(playerList[playerNumber].get_name()) == "" ): #We dont have a players name
-        output = str(playerList[playerNumber].playerID).ljust(10, ' ')
+        output = str(playerList[playerNumber].playerID).ljust(15, ' ')
     else:
-        output = str(playerList[playerNumber].get_name()).ljust(10, ' ')
-    stdscr.addstr(start_h + playerNumber, start_w, output, curses.color_pair(250) | curses.A_BOLD)
+        output = str(playerList[playerNumber].get_name()).ljust(15, ' ')
+    stdscr.addstr(start_h + playerNumber, start_w-15, output, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     for i in range(len(card_ints)):
         c = card_ints[i]
@@ -163,16 +172,16 @@ def curses_print_playerCards(card_ints, playerNumber, handEval):
         r = Card.STR_RANKS[rank_int]
         if(suit_int == 1):            
             # 's' : 1, # spades
-            stdscr.addstr(start_h + playerNumber, start_w + 12, "[" +r+ " " +s+ "]", curses.color_pair(250) | curses.A_BOLD)
+            stdscr.addstr(start_h + playerNumber, start_w, "[" +r+ " " +s+ "]", curses.color_pair(250) | curses.A_BOLD)
         elif(suit_int == 2):
             # 'h' : 2, # hearts
-            stdscr.addstr(start_h + playerNumber, start_w + 12, "[" +r+ " " +s+ "]", curses.color_pair(161) | curses.A_BOLD)
+            stdscr.addstr(start_h + playerNumber, start_w, "[" +r+ " " +s+ "]", curses.color_pair(161) | curses.A_BOLD)
         elif(suit_int == 4):
             # 'd' : 4, # diamonds
-            stdscr.addstr(start_h + playerNumber, start_w + 12, "[" +r+ " " +s+ "]", curses.color_pair(20) | curses.A_BOLD)
+            stdscr.addstr(start_h + playerNumber, start_w , "[" +r+ " " +s+ "]", curses.color_pair(20) | curses.A_BOLD)
         elif(suit_int == 8):
             # 'c' : 8, # clubs
-            stdscr.addstr(start_h + playerNumber, start_w + 12, "[" +r+ " " +s+ "]", curses.color_pair(47) | curses.A_BOLD)
+            stdscr.addstr(start_h + playerNumber, start_w, "[" +r+ " " +s+ "]", curses.color_pair(47) | curses.A_BOLD)
         #Add width of card each time we add a new one
         start_w = start_w + 5
         stdscr.refresh()
@@ -180,7 +189,7 @@ def curses_print_playerCards(card_ints, playerNumber, handEval):
     if(handEval == ""):
         pass
     else:
-        stdscr.addstr(start_h + playerNumber, start_w + (5 * len(card_ints)) + 3, "("+handEval+")"+" "*20, curses.color_pair(250) | curses.A_BOLD)
+        stdscr.addstr(start_h + playerNumber, start_w + (5 * len(card_ints)) + 3, str("("+handEval+")").ljust(35), curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()
 
 def curses_clear_playerCards():
@@ -200,10 +209,10 @@ def curses_print_leaderboard():
     global height
     global width
     global playerList
-    start_w = 4
+    start_w = 2
     start_h = 4
     for player in playerList:
-        output = str(player.get_name()).ljust(10, ' ') + str(" ["+ player.playerID +"]").ljust(10, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"
+        output = str(player.get_name()).ljust(15, ' ') + str(" ["+ player.playerID +"]").ljust(15, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"
         stdscr.addstr(start_h, start_w, output, curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()
         start_h = start_h + 1
@@ -411,7 +420,7 @@ def parseRUPEvent(evtData):
             p = Player(str(evtData.players[player]['id']))
             p.set_name(str(evtData.players[player]['name']))
             playerList.append(p)
-    printPlayerList()
+    curses_print_leaderboard()
     
 def parseGCEvent(evtData):
     global evaluator
@@ -435,14 +444,14 @@ def parseGCEvent(evtData):
                             # print("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
                             curses_print_communityCards(communityCards)
                             curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, str(evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards())))))
-                            curses_print_handStats(playerList[itemNum].get_holecards())
+                            run_handSimulation(playerList[itemNum].get_holecards(), itemNum)
                             if not (gameLogFile == ''):
                                 writeGameLog("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
                                 writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")    
                         else: #Pre-Flop
                             curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, "Pre-Flop")
                             #Calculate PreFlop Hand Stats
-                            curses_print_handStats(playerList[itemNum].get_holecards())
+                            run_handSimulation(playerList[itemNum].get_holecards(), itemNum)
                             # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
                             if not (gameLogFile == ''):
                                 writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[returnPlayerIndex(str(player))].get_holecards()))
@@ -497,7 +506,6 @@ def parseGCEvent(evtData):
             #print(str(player) + " Action: " + str(evtData['tB'][player]))#<D> seems to be N/A, check ==check # is amount bet
     #if("gT" in evtData.keys()):
     #    print("gT" + str(json.dumps(evtData['gT'], default=lambda o: o.__dict__, indent=4)))
-    printPlayerList()
 
 #Create our Cookie String with APT/NPT values
 def getCookieVal(aptVal, nptVal):
