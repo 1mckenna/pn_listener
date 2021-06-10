@@ -43,28 +43,31 @@ def curses_print_communityCards(card_ints):
     global width
     start_w = 4
     start_h = 21
-    for i in range(len(card_ints)):
-        c = card_ints[i]
-        suit_int = Card.get_suit_int(c)
-        rank_int = Card.get_rank_int(c)
-        # if we need to color red
-        s = Card.PRETTY_SUITS[suit_int]
-        r = Card.STR_RANKS[rank_int]
-        if(suit_int == 1):            
-            # 's' : 1, # spades
-            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(250) | curses.A_BOLD)
-        elif(suit_int == 2):
-            # 'h' : 2, # hearts
-            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(161) | curses.A_BOLD)
-        elif(suit_int == 4):
-            # 'd' : 4, # diamonds
-            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(20) | curses.A_BOLD)
-        elif(suit_int == 8):
-            # 'c' : 8, # clubs
-            stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(47) | curses.A_BOLD)
-        #Add width of card each time we add a new one
-        start_w = start_w + 7
-        stdscr.refresh()
+    try:
+        for i in range(len(card_ints)):
+            c = card_ints[i]
+            suit_int = Card.get_suit_int(c)
+            rank_int = Card.get_rank_int(c)
+            # if we need to color red
+            s = Card.PRETTY_SUITS[suit_int]
+            r = Card.STR_RANKS[rank_int]
+            if(suit_int == 1):            
+                # 's' : 1, # spades
+                stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(250) | curses.A_BOLD)
+            elif(suit_int == 2):
+                # 'h' : 2, # hearts
+                stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(161) | curses.A_BOLD)
+            elif(suit_int == 4):
+                # 'd' : 4, # diamonds
+                stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(20) | curses.A_BOLD)
+            elif(suit_int == 8):
+                # 'c' : 8, # clubs
+                stdscr.addstr(start_h, start_w, " [" +r+ " " +s+ "] ", curses.color_pair(47) | curses.A_BOLD)
+            #Add width of card each time we add a new one
+            start_w = start_w + 7
+            stdscr.refresh()
+    except Exception as e:
+        writeDebugLog("Exception in Print Comm Cards: " + str(e))
 
 def curses_clear_communityCards():
     global stdscr
@@ -124,7 +127,8 @@ def curses_clearHandStats():
     global width
     start_w = 17
     start_h = 27
-    for playerNumber in range(playerList):
+    i = 0
+    for playerNumber in range(len(playerList)):
         stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, " "*(width - start_w + (5*len(playerList[playerNumber].get_holecards())) + 35), curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()  
 
@@ -163,10 +167,10 @@ def curses_print_playerCards(card_ints, playerNumber, handEval):
         output = str(playerList[playerNumber].get_name()).ljust(15, ' ')
     stdscr.addstr(start_h + playerNumber, start_w-15, output, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
-    for i in range(len(card_ints)):
-        c = card_ints[i]
-        suit_int = Card.get_suit_int(c)
-        rank_int = Card.get_rank_int(c)
+    ##
+    for i in card_ints:
+        suit_int = Card.get_suit_int(i)
+        rank_int = Card.get_rank_int(i)
         # if we need to color red
         s = Card.PRETTY_SUITS[suit_int]
         r = Card.STR_RANKS[rank_int]
@@ -287,7 +291,10 @@ def muckCards():
     global playerList
     for p in playerList:
         p.clearHoleCards()
-    time.sleep(2*len(playerList)) #simulate muck time
+    if(playerList is None):
+        time.sleep(2)
+    else:    
+        time.sleep(2*len(playerList)) #simulate muck time
     
 
 def printPlayerList():
@@ -496,10 +503,8 @@ def parseGCEvent(evtData):
                     if("stack" in evtData['players'][player].keys()):
                         playerList[itemNum].set_stacksize(int(evtData['players'][player]['stack']))
                     if("winCount" in evtData['players'][player].keys()):
-                        writeDebugLog("WC: "+str(evtData['players'][player]['winCount']))
                         playerList[itemNum].set_playerWins(int(evtData['players'][player]['winCount']))
                     if("quitCount" in evtData['players'][player].keys()):
-                        writeDebugLog("QC: "+str(evtData['players'][player]['quitCount']))
                         playerList[itemNum].set_playerRebuys(int(evtData['players'][player]['quitCount']))
         except Exception as e:
             writeDebugLog("Exception in players: " + str(e))
@@ -528,12 +533,14 @@ def parseGCEvent(evtData):
                 curses_clear_communityCards()
                 #Clear Player Cards
                 muckCards()
+                writeDebugLog("Here1 in gameResult: ")
                 curses_clear_playerCards()
+                writeDebugLog("Here2 in gameResult: ")
                 curses_clearHandStats()
-                writeDebugLog("Here in gameResult: ")
+                writeDebugLog("Here3 in gameResult: ")
                 #Request for an update to the players list
                 updatePlayerList()
-                writeDebugLog("Here2 in gameResult: ")
+                writeDebugLog("Here4 in gameResult: ")
                 #Print PlayerList
                 curses_print_leaderboard()
         except Exception as e:
