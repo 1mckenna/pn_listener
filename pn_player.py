@@ -7,6 +7,9 @@ class Player:
     playerHand = []
     playerWinChance = 0.0
     playerStackSize = 0
+    playerWins = 0
+    playerRebuys = 0
+    playerMuting = []
 
     def __init__(self, playerID):
         self.playerID = playerID
@@ -32,6 +35,13 @@ class Player:
     def get_holecards(self):
         return self.playerHand
 
+    def set_muting(self, muteList):
+        self.playerMuting = muteList
+
+    def get_muting(self):
+        return self.playerMuting
+
+
     def get_playerstatus(self):
         return self.playerStatus
 
@@ -43,3 +53,15 @@ class Player:
     
     def get_playerWinChance(self):
         return self.playerWinChance
+
+    def set_playerWins(self, wins):
+        self.playerWins = wins
+    
+    def get_playerWins(self):
+        return self.playerWins
+
+    def set_playerRebuys(self, rebuys):
+        self.playerRebuys = rebuys
+    
+    def get_playerRebuys(self):
+        return self.playerRebuys

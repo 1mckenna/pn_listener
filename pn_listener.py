@@ -78,10 +78,10 @@ def curses_clear_communityCards():
 def curses_print_allHeaders():
     global stdscr
     stdscr.addstr(0, 18, " *** L E A D E R B O A R D *** ", curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(1, 2,"=" * 85, curses.color_pair(250) | curses.A_BOLD)
-    headers = str("Handle".ljust(15, ' ')) + " Player ID".ljust(15, ' ')+"\t"+"<STATUS>".ljust(10, ' ')+"\t "+"Stacksize".rjust(13,' ')+" (c)"
+    stdscr.addstr(1, 2,"=" * 95, curses.color_pair(250) | curses.A_BOLD)
+    headers = str("Handle".ljust(15, ' ')) + " Player ID".ljust(15, ' ')+"\t"+"<STATUS>".ljust(10, ' ')+"\t "+"Stacksize".rjust(13,' ')+" (c)\t"+"Wins".rjust(4,' ')+"\t"+"Rebuys".rjust(4,' ')
     stdscr.addstr(2, 2, headers, curses.color_pair(250) | curses.A_BOLD)
-    stdscr.addstr(3, 2,"-" * 85, curses.color_pair(250) | curses.A_BOLD)
+    stdscr.addstr(3, 2,"-" * 95, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     stdscr.addstr(19, 12, " *** C O M M U N I T Y *  * C A R D S *** ", curses.color_pair(250) | curses.A_BOLD)
     stdscr.addstr(20, 2, "="*85, curses.color_pair(250) | curses.A_BOLD)
@@ -212,7 +212,7 @@ def curses_print_leaderboard():
     start_w = 2
     start_h = 4
     for player in playerList:
-        output = str(player.get_name()).ljust(15, ' ') + str(" ["+ player.playerID +"]").ljust(15, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"
+        output = str(player.get_name()).ljust(15, ' ') + str(" ["+ player.playerID +"]").ljust(15, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"+"\t "+str(player.get_playerWins()).rjust(4,' ')+"\t "+str(player.get_playerRebuys()).rjust(4,' ')
         stdscr.addstr(start_h, start_w, output, curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()
         start_h = start_h + 1
@@ -335,15 +335,15 @@ def my_gc_event(data):
         #     sio.emit("action", data={"type":"RUP"},callback=2)
         #sio.emit("action", data={"type":"RUP"},callback=2)
         sio.sleep(1)
-    except:
-        pass
+    except Exception as e:
+        writeDebugLog("Exception in GC MAin: " + str(e))
 
 def updatePlayerList():
     #emit event to update player list
     try:
         sio.emit("action", data={"type":"RUP"},callback=2)
-    except:
-        pass
+    except Exception as e:
+        writeDebugLog("Exception in Update Player list: " + str(e))
 
 @sio.on('rup')
 def my_rup_event(data):
@@ -365,8 +365,8 @@ def my_rup_event(data):
                 myrup = rup(json.dumps(data, default=lambda o: o.__dict__, indent=4))
                 parseRUPEvent(myrup)
         sio.sleep(1)
-    except:
-        pass
+    except Exception as e:
+        writeDebugLog("In RUP MAIN: " + str(e))
 
 
 @sio.event
@@ -390,16 +390,17 @@ def start_server(gameID, cookieVal):
         'Cookie': cookieVal
         })
     except Exception as e:
-        print("start-server exception")
-        print(e)
+        writeDebugLog("Start Server: " + str(e))
         # pass
 #END SocketIO Code
 
 def parseRUPEvent(evtData):
     global playerList
     global debugLogging
-    if(debugLogging):
-        writeDebugLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
+    # if(debugLogging):
+    #     writeDebugLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
+    if(evtData.players.keys() is None):
+        writeDebugLog("players empty: " )
     for player in evtData.players.keys():
         if(len(playerList) > 0):
             #Check if Player ID Exists
@@ -414,10 +415,12 @@ def parseRUPEvent(evtData):
                 #Add Player
                 p = Player(str(evtData.players[player]['id']))
                 p.set_name(str(evtData.players[player]['name']))
-                if not (evtData.players[player]['stack'] is None):
-                    p.set_stacksize(evtData.players[player]['stack'])
-                if not (evtData.players[player]['status'] is None):
-                    p.set_playerstatus(evtData.players[player]['status'])
+                p.set_stacksize(evtData.players[player]['stack'])
+                p.set_playerstatus(evtData.players[player]['status'])
+                # if not (evtData['players'][player]['winCount'] is None):
+                #     p.set_playerWins(int(evtData['players'][player]['winCount']))
+                # if not (evtData['players'][player]['quitCount'] is None):
+                #     p.set_playerRebuys(int(evtData['players'][player]['quitCount']))
                 playerList.append(p)
         else:
             #Add Player
@@ -427,6 +430,10 @@ def parseRUPEvent(evtData):
                 p.set_stacksize(evtData.players[player]['stack'])
             if not (evtData.players[player]['status'] is None):
                 p.set_playerstatus(evtData.players[player]['status'])
+            # if not (evtData['players'][player]['winCount'] is None):
+            #     p.set_playerWins(int(evtData['players'][player]['winCount']))
+            # if not (evtData['players'][player]['quitCount'] is None):
+            #     p.set_playerRebuys(int(evtData['players'][player]['quitCount']))
             playerList.append(p)
     curses_print_leaderboard()
     
@@ -436,8 +443,8 @@ def parseGCEvent(evtData):
     global playerList
     global debugLogging
     global gameLogFile
-    if(debugLogging):
-        writeDebugLog(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
+    # if(debugLogging):
+    #     writeDebugLog(json.dumps(evtData, default=lambda o: o.__dict__, indent=4))
     if( "pC" in evtData.keys()):
         for player in evtData['pC'].keys():
             if( "cards" in evtData['pC'][player]):
@@ -479,31 +486,58 @@ def parseGCEvent(evtData):
                             # print(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")
                     except:
                         pass
+    if("players" in evtData.keys()):
+        try:
+            for player in evtData['players'].keys():
+
+                if(isKnownPlayer(player)):
+                    #Get Player Item # so we can update them
+                    itemNum = returnPlayerIndex(player)
+                    if("stack" in evtData['players'][player].keys()):
+                        playerList[itemNum].set_stacksize(int(evtData['players'][player]['stack']))
+                    if("winCount" in evtData['players'][player].keys()):
+                        writeDebugLog("WC: "+str(evtData['players'][player]['winCount']))
+                        playerList[itemNum].set_playerWins(int(evtData['players'][player]['winCount']))
+                    if("quitCount" in evtData['players'][player].keys()):
+                        writeDebugLog("QC: "+str(evtData['players'][player]['quitCount']))
+                        playerList[itemNum].set_playerRebuys(int(evtData['players'][player]['quitCount']))
+        except Exception as e:
+            writeDebugLog("Exception in players: " + str(e))
+        #curses_print_leaderboard()
+
     if( "oTC" in evtData.keys()):
-        #Clear Board Cards So we can just add them all
-        communityCards.clear()
-        for cCard in evtData['oTC']['1']:
-            communityCards.append(Card.new(cCard))
-        if( len(communityCards) > 2):
-            curses_print_communityCards(communityCards)
-            if not (gameLogFile == ''):
-                writeGameLog("Community Cards: "+ getPrintPrettyStr(communityCards))
-    if("gameResult" in evtData.keys()):
-        if(type(evtData['gameResult']) == dict):
-            #When we see gameResult the hand is ended
-            if not (gameLogFile == ''):
-                writeGameLog("Hand Complete")
-            #Clear Board Cards
+        try:
+            #Clear Board Cards So we can just add them all
             communityCards.clear()
-            curses_clear_communityCards()
-            #Clear Player Cards
-            muckCards()
-            curses_clear_playerCards()
-            curses_clearHandStats()
-            #Request for an update to the players list
-            updatePlayerList()
-            #Print PlayerList
-            curses_print_leaderboard()
+            for cCard in evtData['oTC']['1']:
+                communityCards.append(Card.new(cCard))
+            if( len(communityCards) > 2):
+                curses_print_communityCards(communityCards)
+                if not (gameLogFile == ''):
+                    writeGameLog("Community Cards: "+ getPrintPrettyStr(communityCards))
+        except Exception as e:
+            writeDebugLog("Exception in OTC: " + str(e))
+    if("gameResult" in evtData.keys()):
+        try:
+            if(type(evtData['gameResult']) == dict):
+                #When we see gameResult the hand is ended
+                if not (gameLogFile == ''):
+                    writeGameLog("Hand Complete")
+                #Clear Board Cards
+                communityCards.clear()
+                curses_clear_communityCards()
+                #Clear Player Cards
+                muckCards()
+                curses_clear_playerCards()
+                curses_clearHandStats()
+                writeDebugLog("Here in gameResult: ")
+                #Request for an update to the players list
+                updatePlayerList()
+                writeDebugLog("Here2 in gameResult: ")
+                #Print PlayerList
+                curses_print_leaderboard()
+        except Exception as e:
+            writeDebugLog("Exception in gameResult: " + str(e))
     #if("cHB" in evtData.keys()):
     #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
     #if("tB" in evtData.keys()):
@@ -512,6 +546,7 @@ def parseGCEvent(evtData):
             #print(str(player) + " Action: " + str(evtData['tB'][player]))#<D> seems to be N/A, check ==check # is amount bet
     #if("gT" in evtData.keys()):
     #    print("gT" + str(json.dumps(evtData['gT'], default=lambda o: o.__dict__, indent=4)))
+    curses_print_leaderboard()
 
 #Create our Cookie String with APT/NPT values
 def getCookieVal(aptVal, nptVal):
