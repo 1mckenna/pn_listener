@@ -16,6 +16,7 @@ evaluator = Evaluator()
 communityCards = []
 playerList = []
 debugLogging = False
+heroName = ""
 gameLogFile = ""
 firstGC = True
 firstRUP = True
@@ -25,19 +26,11 @@ lastRUP=""
 #sio = socketio.Client(engineio_logger=True, logger=True)
 sio = socketio.Client()
 sio.eio.logger.setLevel("CRITICAL")
-#Start Curses
-stdscr = curses.initscr()
-height, width = stdscr.getmaxyx()
-stdscr.erase()
-stdscr.refresh()
-# Start colors in curses
-curses.start_color()
-curses.use_default_colors()
-for i in range(0, curses.COLORS):
-    curses.init_pair(i, i, -1)
+
 
 
 def curses_print_communityCards(card_ints):
+    global debugLogging
     global stdscr
     global height
     global width
@@ -67,7 +60,10 @@ def curses_print_communityCards(card_ints):
             start_w = start_w + 7
             stdscr.refresh()
     except Exception as e:
-        writeDebugLog("Exception in Print Comm Cards: " + str(e))
+        if(debugLogging):
+            writeDebugLog("Exception in Print Comm Cards: " + str(e))
+        else:
+            pass
 
 def curses_clear_communityCards():
     global stdscr
@@ -213,11 +209,15 @@ def curses_print_leaderboard():
     global height
     global width
     global playerList
+    global heroName
     start_w = 2
     start_h = 4
     for player in playerList:
         output = str(player.get_name()).ljust(15, ' ') + str(" ["+ player.playerID +"]").ljust(15, ' ')+"\t"+str("<" + player.get_playerstatus() +">").ljust(10, ' ')+"\t "+str(player.get_stacksize()).rjust(13,' ')+" (c)"+"\t "+str(player.get_playerWins()).rjust(4,' ')+"\t "+str(player.get_playerRebuys()).rjust(4,' ')
-        stdscr.addstr(start_h, start_w, output, curses.color_pair(250) | curses.A_BOLD)
+        if(heroName[0] == str(player.get_name())):
+            stdscr.addstr(start_h, start_w, output, curses.color_pair(47) | curses.A_BOLD)
+        else:
+            stdscr.addstr(start_h, start_w, output, curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()
         start_h = start_h + 1
 
@@ -237,9 +237,9 @@ def curses_print_center(msg):
 
 
 def parseArgs():
-    global debugLogging
     parser = argparse.ArgumentParser()
     parser.add_argument('-g','--game', dest="game", help='pokernow.club game id', nargs=1, required=True)
+    parser.add_argument('-p', '--player', dest="hero", default='', help='Your Player Handle (enables highlighted user in leaderboard)', nargs=1)
     parser.add_argument('-n', '--npt', dest="npt", default='', help='pokernow.club npt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-a', '--apt', dest="apt", default='', help='pokernow.club apt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-l', '--log', dest="log", default='', help='Enable Game Logging', nargs=1)
@@ -248,9 +248,6 @@ def parseArgs():
     if not args.game and (not args.npt or not args.apt):
         print("You must a gameid and a npt/apt cookie value")
         raise SystemExit(-1)
-    if(args.debug):
-        #Enable Debug Logging
-        debugLogging = True
     return args
 
 class rup(object):
@@ -296,7 +293,6 @@ def muckCards():
     else:    
         time.sleep(2*len(playerList)) #simulate muck time
     
-
 def printPlayerList():
     global playerList
     global width
@@ -322,6 +318,7 @@ def connect():
 
 @sio.on('gC')
 def my_gc_event(data):
+    global debugLogging
     global firstGC
     global lastGC
     try:
@@ -343,17 +340,25 @@ def my_gc_event(data):
         #sio.emit("action", data={"type":"RUP"},callback=2)
         sio.sleep(1)
     except Exception as e:
-        writeDebugLog("Exception in GC MAin: " + str(e))
+        if(debugLogging):
+            writeDebugLog("Exception in GC MAin: " + str(e))
+        else:
+            pass
 
 def updatePlayerList():
+    global debugLogging
     #emit event to update player list
     try:
         sio.emit("action", data={"type":"RUP"},callback=2)
     except Exception as e:
-        writeDebugLog("Exception in Update Player list: " + str(e))
+        if(debugLogging):
+            writeDebugLog("Exception in Update Player list: " + str(e))
+        else:
+            pass
 
 @sio.on('rup')
 def my_rup_event(data):
+    global debugLogging
     global firstRUP
     global lastRUP
     try:
@@ -373,7 +378,10 @@ def my_rup_event(data):
                 parseRUPEvent(myrup)
         sio.sleep(1)
     except Exception as e:
-        writeDebugLog("In RUP MAIN: " + str(e))
+        if(debugLogging):
+            writeDebugLog("In RUP MAIN: " + str(e))
+        else:
+            pass
 
 
 @sio.event
@@ -381,6 +389,7 @@ def disconnect():
     pass
 
 def start_server(gameID, cookieVal):
+    global debugLogging
     try:
         sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, wait=True, wait_timeout=60, transports="websocket", headers={
         'Accept-Encoding': 'gzip, deflate, br',
@@ -397,8 +406,10 @@ def start_server(gameID, cookieVal):
         'Cookie': cookieVal
         })
     except Exception as e:
-        writeDebugLog("Start Server: " + str(e))
-        # pass
+        if(debugLogging):
+            writeDebugLog("Start Server: " + str(e))
+        else:
+            pass
 #END SocketIO Code
 
 def parseRUPEvent(evtData):
@@ -406,8 +417,6 @@ def parseRUPEvent(evtData):
     global debugLogging
     # if(debugLogging):
     #     writeDebugLog(str(json.dumps(evtData, default=lambda o: o.__dict__, indent=4)))
-    if(evtData.players.keys() is None):
-        writeDebugLog("players empty: " )
     for player in evtData.players.keys():
         if(len(playerList) > 0):
             #Check if Player ID Exists
@@ -507,7 +516,10 @@ def parseGCEvent(evtData):
                     if("quitCount" in evtData['players'][player].keys()):
                         playerList[itemNum].set_playerRebuys(int(evtData['players'][player]['quitCount']))
         except Exception as e:
-            writeDebugLog("Exception in players: " + str(e))
+            if(debugLogging):
+                writeDebugLog("Exception in players: " + str(e))
+            else:
+                pass
         #curses_print_leaderboard()
 
     if( "oTC" in evtData.keys()):
@@ -521,7 +533,10 @@ def parseGCEvent(evtData):
                 if not (gameLogFile == ''):
                     writeGameLog("Community Cards: "+ getPrintPrettyStr(communityCards))
         except Exception as e:
-            writeDebugLog("Exception in OTC: " + str(e))
+            if(debugLogging):
+                writeDebugLog("Exception in OTC: " + str(e))
+            else:
+                pass
     if("gameResult" in evtData.keys()):
         try:
             if(type(evtData['gameResult']) == dict):
@@ -533,18 +548,17 @@ def parseGCEvent(evtData):
                 curses_clear_communityCards()
                 #Clear Player Cards
                 muckCards()
-                writeDebugLog("Here1 in gameResult: ")
                 curses_clear_playerCards()
-                writeDebugLog("Here2 in gameResult: ")
                 curses_clearHandStats()
-                writeDebugLog("Here3 in gameResult: ")
                 #Request for an update to the players list
                 updatePlayerList()
-                writeDebugLog("Here4 in gameResult: ")
                 #Print PlayerList
                 curses_print_leaderboard()
         except Exception as e:
-            writeDebugLog("Exception in gameResult: " + str(e))
+            if(debugLogging):
+                writeDebugLog("Exception in gameResult: " + str(e))
+            else:
+                pass
     #if("cHB" in evtData.keys()):
     #    print("cHB: " + str(json.dumps(evtData['cHB'], default=lambda o: o.__dict__, indent=4)))
     #if("tB" in evtData.keys()):
@@ -590,7 +604,7 @@ def main():
                 curses.flushinp() # Clear out buffer.  We only care about Ctrl+C.      
     except KeyboardInterrupt:
         stdscr.erase()
-        stdscr.addstr(3, 0, "I'm Dying How Are You?", curses.color_pair(250) | curses.A_BOLD)
+        stdscr.addstr(int(height/2), int(width/2), "I'm Dying How Are You?", curses.color_pair(161) | curses.A_BOLD)
         stdscr.attron(curses.color_pair(3))
         stdscr.addstr(height-1, 0, statusbarstr)
         stdscr.addstr(height-1, len(statusbarstr), " " * (width - len(statusbarstr) - 1))
@@ -608,4 +622,19 @@ if __name__ == '__main__':
     args = parseArgs()
     if not (args.log == ''):
         gameLogFile = args.log
+    if(args.debug):
+        #Enable Debug Logging
+        debugLogging = True
+    if not (args.hero == ''):
+        heroName = args.hero
+    #Start Curses
+    stdscr = curses.initscr()
+    height, width = stdscr.getmaxyx()
+    stdscr.erase()
+    stdscr.refresh()
+    # Start colors in curses
+    curses.start_color()
+    curses.use_default_colors()
+    for i in range(0, curses.COLORS):
+        curses.init_pair(i, i, -1)
     main()
