@@ -112,9 +112,13 @@ def curses_print_handStats(playerNumber):
     global height
     global width
     global playerList
+    global heroName
     start_w = 17
     start_h = 27
-    stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(250) | curses.A_BOLD)
+    if(heroName[0] == str(playerList[playerNumber].get_name())):
+        start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(47) | curses.A_BOLD)
+    else:
+        stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
 
 def curses_clearHandStats():
@@ -155,13 +159,17 @@ def curses_print_playerCards(card_ints, playerNumber, handEval):
     global height
     global width
     global playerList
+    global heroName
     start_w = 17
     start_h = 27
     if(str(playerList[playerNumber].get_name()) == "" ): #We dont have a players name
         output = str(playerList[playerNumber].playerID).ljust(15, ' ')
     else:
         output = str(playerList[playerNumber].get_name()).ljust(15, ' ')
-    stdscr.addstr(start_h + playerNumber, start_w-15, output, curses.color_pair(250) | curses.A_BOLD)
+    if(heroName[0] == str(playerList[playerNumber].get_name())):
+        stdscr.addstr(start_h + playerNumber, start_w-15, output, curses.color_pair(47) | curses.A_BOLD)
+    else:
+        stdscr.addstr(start_h + playerNumber, start_w-15, output, curses.color_pair(250) | curses.A_BOLD)
     stdscr.refresh()
     ##
     for i in card_ints:
@@ -189,7 +197,10 @@ def curses_print_playerCards(card_ints, playerNumber, handEval):
     if(handEval == ""):
         pass
     else:
-        stdscr.addstr(start_h + playerNumber, start_w + (5 * len(card_ints)) + 3, str("("+handEval+")").ljust(35), curses.color_pair(250) | curses.A_BOLD)
+        if(heroName[0] == str(playerList[playerNumber].get_name())):
+            stdscr.addstr(start_h + playerNumber, start_w + (5 * len(card_ints)) + 3, str("("+handEval+")").ljust(35), curses.color_pair(47) | curses.A_BOLD)
+        else:
+            stdscr.addstr(start_h + playerNumber, start_w + (5 * len(card_ints)) + 3, str("("+handEval+")").ljust(35), curses.color_pair(250) | curses.A_BOLD)
         stdscr.refresh()
 
 def curses_clear_playerCards():
