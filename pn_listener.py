@@ -116,10 +116,11 @@ def curses_print_handStats(playerNumber):
     start_w = 17
     start_h = 27
     if(heroName[0] == str(playerList[playerNumber].get_name())):
-        start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(47) | curses.A_BOLD)
+        stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(47) | curses.A_BOLD)
+        stdscr.refresh()
     else:
         stdscr.addstr(start_h + playerNumber, start_w + (5*len(playerList[playerNumber].get_holecards())) + 35, "{Win Percent: %.1f%%}"% (100 * playerList[playerNumber].get_playerWinChance()), curses.color_pair(250) | curses.A_BOLD)
-    stdscr.refresh()
+        stdscr.refresh()
 
 def curses_clearHandStats():
     global playerList
@@ -402,7 +403,7 @@ def disconnect():
 def start_server(gameID, cookieVal):
     global debugLogging
     try:
-        sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, wait=True, wait_timeout=60, transports="websocket", headers={
+        sio.connect('https://www.pokernow.club/socket.io/?gameID='+gameID, transports="websocket", headers={
         'Accept-Encoding': 'gzip, deflate, br',
         'Accept-Language': 'en-US,en;q=0.9',
         'Cache-Control': 'no-cache',
