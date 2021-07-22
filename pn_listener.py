@@ -140,9 +140,14 @@ def run_handSimulation(card_ints, playerNumber):
     simulation_count = 10000
     win_count = 0
     runs = 0
+    numplayers = len(playerList)
     for sim in range(simulation_count):
         board_fill = 5 - len(communityCards)
-        simulate_board = communityCards + drawCard(board_fill, communityCards + card_ints)
+        if(numplayers > 2):
+            #Make sure we exclude other players cards (we assume all players fold except main enemy)
+            folded_enemies = len(playerList)-2
+            folded_cards = drawCard(2*folded_enemies, communityCards + card_ints)
+        simulate_board = folded_cards + communityCards + drawCard(board_fill, communityCards + card_ints + folded_cards)
         simulate_hand = drawCard(2, simulate_board + card_ints)
         my_score = evaluator.evaluate(simulate_board, card_ints)
         enemy_score = evaluator.evaluate(simulate_board, simulate_hand)
@@ -303,7 +308,7 @@ def muckCards():
     if(playerList is None):
         time.sleep(2)
     else:    
-        time.sleep(2*len(playerList)) #simulate muck time
+        time.sleep(5) #simulate muck time
     
 def printPlayerList():
     global playerList
@@ -491,7 +496,7 @@ def parseGCEvent(evtData):
                                 writeGameLog("Community Cards ("+str(len(communityCards))+"): " + getPrintPrettyStr(communityCards))
                                 writeGameLog(str(playerList[itemNum].get_name()) + " Cards: " + getPrintPrettyStr(playerList[itemNum].get_holecards()) + "("+ evaluator.class_to_string( evaluator.get_rank_class( evaluator.evaluate(communityCards, playerList[itemNum].get_holecards() ) ) ) +")")    
                         else: #Pre-Flop
-                            curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, "Pre-Flop")
+                            curses_print_playerCards(playerList[itemNum].get_holecards(), itemNum, "")
                             #Calculate PreFlop Hand Stats
                             run_handSimulation(playerList[itemNum].get_holecards(), itemNum)
                             if not (gameLogFile == ''):
