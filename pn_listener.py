@@ -137,7 +137,8 @@ def curses_clearHandStats():
 def run_handSimulation(card_ints, playerNumber):
     global communityCards
     global playerList
-    simulation_count = 10000
+    #simulation_count = 10000
+    simulation_count = 5000
     win_count = 0
     runs = 0
     numplayers = len(playerList)
@@ -232,11 +233,10 @@ def curses_clear_playerCards():
     global height
     global width
     global playerList
-    start_w = 12
+    start_w = 17
     start_h = 27
-    for player in playerList:
-        stdscr.addstr(start_h, start_w, " " * 80)
-        start_h = start_h + 1
+    for playerNumber in range(len(playerList)):
+        stdscr.addstr(start_h+playerNumber, start_w, " " * 80)
         stdscr.refresh()
 
 def curses_print_leaderboard():
@@ -539,17 +539,17 @@ def parseGCEvent(evtData):
                         pass
     if("players" in evtData.keys()):
         try:
-            for player in evtData['players'].keys():
-
-                if(isKnownPlayer(player)):
-                    #Get Player Item # so we can update them
-                    itemNum = returnPlayerIndex(player)
-                    if("stack" in evtData['players'][player].keys()):
-                        playerList[itemNum].set_stacksize(int(evtData['players'][player]['stack']))
-                    if("winCount" in evtData['players'][player].keys()):
-                        playerList[itemNum].set_playerWins(int(evtData['players'][player]['winCount']))
-                    if("quitCount" in evtData['players'][player].keys()):
-                        playerList[itemNum].set_playerRebuys(int(evtData['players'][player]['quitCount']))
+            if(type(evtData['players']) is dict):
+                for player in evtData['players'].keys():
+                    if(isKnownPlayer(player)):
+                        #Get Player Item # so we can update them
+                        itemNum = returnPlayerIndex(player)
+                        if("stack" in evtData['players'][player].keys()):
+                            playerList[itemNum].set_stacksize(int(evtData['players'][player]['stack']))
+                        if("winCount" in evtData['players'][player].keys()):
+                            playerList[itemNum].set_playerWins(int(evtData['players'][player]['winCount']))
+                        if("quitCount" in evtData['players'][player].keys()):
+                            playerList[itemNum].set_playerRebuys(int(evtData['players'][player]['quitCount']))
         except Exception as e:
             if(debugLogging):
                 writeDebugLog("Exception in players: " + str(e))
