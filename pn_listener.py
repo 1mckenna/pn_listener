@@ -141,23 +141,41 @@ def run_handSimulation(card_ints, playerNumber):
     win_count = 0
     runs = 0
     numplayers = len(playerList)
-    for sim in range(simulation_count):
-        board_fill = 5 - len(communityCards)
-        if(numplayers > 2):
-            #Make sure we exclude other players cards (we assume all players fold except main enemy)
-            folded_enemies = len(playerList)-2
-            folded_cards = drawCard(2*folded_enemies, communityCards + card_ints)
-        simulate_board = folded_cards + communityCards + drawCard(board_fill, communityCards + card_ints + folded_cards)
-        simulate_hand = drawCard(2, simulate_board + card_ints)
-        my_score = evaluator.evaluate(simulate_board, card_ints)
-        enemy_score = evaluator.evaluate(simulate_board, simulate_hand)
-        if my_score < enemy_score:
-            win_count += 1
-        runs += 1
-    win_chance = win_count/float(runs)
-    playerList[playerNumber].set_playerWinChance(win_chance)
-    #Now that we have stored the hand stats let's print them
-    curses_print_handStats(playerNumber)
+    folded_cards = []
+    try:
+        for sim in range(simulation_count):
+            board_fill = 5 - len(communityCards)
+            if(numplayers > 2):
+                #Make sure we exclude other players cards (we assume all players fold except main enemy)
+                folded_enemies = len(playerList)-2
+                folded_cards = drawCard(len(card_ints)*folded_enemies, communityCards + card_ints)
+            simulate_board = communityCards + drawCard(board_fill, communityCards + card_ints + folded_cards)
+            simulate_hand = drawCard(len(card_ints), simulate_board + card_ints + folded_cards)
+            if(len(card_ints) == 2):
+                my_score = evaluator.evaluate(simulate_board, card_ints)
+                enemy_score = evaluator.evaluate(simulate_board, simulate_hand)
+                if my_score < enemy_score:
+                    win_count += 1
+                runs += 1
+            elif(len(card_ints) == 4):
+                pass
+                #Start Omaha Logic
+                #First we calc win percent for every possible combination of 2 cards using holdem logic. 
+                #my_score = evaluator.evaluate(simulate_board, card_ints)
+                #enemy_score = evaluator.evaluate(simulate_board, simulate_hand)
+                #if my_score < enemy_score:
+                #    win_count += 1
+                #runs += 1
+        win_chance = win_count/float(runs)
+        playerList[playerNumber].set_playerWinChance(win_chance)
+        #Now that we have stored the hand stats let's print them
+        curses_print_handStats(playerNumber)                
+    except Exception as e:
+        if(debugLogging):
+            writeDebugLog("Exception in hand sim: " + str(e))
+        else:
+            pass
+        
 
 
 def curses_print_playerCards(card_ints, playerNumber, handEval):
