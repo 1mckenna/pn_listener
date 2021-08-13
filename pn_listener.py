@@ -273,14 +273,13 @@ def curses_print_center(msg):
 
 def parseArgs():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-g','--game', dest="game", help='pokernow.club game id', nargs=1, required=True)
     parser.add_argument('-p', '--player', dest="hero", default='', help='Your Player Handle (enables highlighted user in leaderboard)', nargs=1)
     parser.add_argument('-n', '--npt', dest="npt", default='', help='pokernow.club npt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-a', '--apt', dest="apt", default='', help='pokernow.club apt cookie value (copy from browser)', nargs=1)
     parser.add_argument('-l', '--log', dest="log", default='', help='Enable Game Logging', nargs=1)
     parser.add_argument('-d', '--debug', dest="debug", default=False, action='store_true', help='Enable Debug Logging (saves to ./debug.log)')
     args = parser.parse_args()
-    if not args.game and (not args.npt or not args.apt):
+    if(not args.npt or not args.apt):
         print("You must a gameid and a npt/apt cookie value")
         raise SystemExit(-1)
     return args
@@ -615,7 +614,7 @@ def getCookieVal(aptVal, nptVal):
 
 def main():
     try:
-        sio.start_background_task(start_server(args.game[0], getCookieVal(args.apt, args.npt)))
+        sio.start_background_task(start_server(gameStr, getCookieVal(args.apt, args.npt)))
         # sio.wait()
         # Initialization
         stdscr.erase()
@@ -654,6 +653,21 @@ def main():
         curses.endwin()
 
 if __name__ == '__main__':
+    #Manually Parse the game argument since argsparse doesnt like args starting with a -
+    gameStr = None
+    i = 0
+    while i < len(sys.argv):
+        if((sys.argv[i] == "--game") or (sys.argv[i] == "-g")):
+            del sys.argv[i]
+            gameStr = ''
+        elif( gameStr == ''):
+            gameStr = sys.argv[i]
+            del sys.argv[i]
+            break
+        else:
+            i += 1
+    i = None
+    
     args = parseArgs()
     if not (args.log == ''):
         gameLogFile = args.log
